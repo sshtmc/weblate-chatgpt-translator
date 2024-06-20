@@ -2,6 +2,22 @@
 
 This project is a Dockerised Python tool designed to work with the Weblate API to fetch projects and use ChatGPT AI to translate them. The updated translations are then committed back to Weblate.
 
+You can see an example of AI translation in your language by visiting *https://ubys.org/\<languege code\>/translator/*
+
+For example:
+1. English https://ubys.org/en/translator/
+2. Spanish https://ubys.org/es/translator/
+3. French https://ubys.org/fr/translator/
+4. German https://ubys.org/de/translator/
+5. Chinese https://ubys.org/zh/translator/
+6. Japanese https://ubys.org/ja/translator/
+7. Korean https://ubys.org/ko/translator/
+8. Italian https://ubys.org/it/translator/
+9. Portuguese https://ubys.org/pt/translator/
+10. Arabic https://ubys.org/ar/translator/
+
+
+
 ## Table of Contents
 - [Installation](#installation)
 - [Usage](#usage)
