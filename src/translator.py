@@ -25,19 +25,10 @@ class Translator:
         messages_to_translate = []
         untranslated_messages = po.untranslated_entries()
         for message in po:
-            if message in untranslated_messages:
+            if message in untranslated_messages or message.msgstr == '' or message.fuzzy:
                 messages_to_translate.append(message)
-                continue
 
-            if message.msgstr == '':
-                messages_to_translate.append(message)
-                continue
-
-            if message.fuzzy:
-                messages_to_translate.append(message)
-                continue
-
-        if len(messages_to_translate) == 0:
+        if not messages_to_translate:
             return po, 0
 
         self.__translate(messages_to_translate, language_code)
@@ -61,10 +52,7 @@ class Translator:
         if total_count is None:
             total_count = len(messages)
 
-        if len(messages) == 0:
-            return
-
-        if max_messages_per_request < 1:
+        if not messages or max_messages_per_request < 1:
             return
 
         batches = []
@@ -83,7 +71,7 @@ class Translator:
                         translated_count=translated_count,
                         recursion_depth=recursion_depth)
                 except Exception:
-                    logger.exception(f"Failed to translate batch. Taking a break before retrying with smaller batch")
+                    logger.exception("Failed to translate batch. Taking a break before retrying with smaller batch")
                     time.sleep(60)
                     self.__translate(
                         batch,
@@ -97,18 +85,17 @@ class Translator:
         else:
             self.__translate_batch(messages, language)
             translated_count += len(messages)
-            logger.info(f"Translated {translated_count} out of {total_count} messages")
+            logger.info("Translated %d out of %d messages", translated_count, total_count)
 
     def __translate_batch(self, batch: List[POEntry], language: str):
         input_json = []
-        for i in range(0, len(batch)):
-            input_data = dict(id=i)
+        for i, entry in enumerate(batch):
+            input_data = {"id": i}
 
-            if batch[i].msgid_plural:
-                input_data['text'] = batch[i].msgid
-                input_data['text_plural'] = batch[i].msgid_plural
+            if entry.msgid_plural:
+                input_data.update({"text": entry.msgid, "text_plural": entry.msgid_plural})
             else:
-                input_data['text'] = batch[i].msgid
+                input_data["text"] = entry.msgid
 
             input_json.append(input_data)
         input_json_text = json.dumps(input_json)
@@ -123,7 +110,7 @@ class Translator:
         {input_json_text}
         """
 
-        logger.info(f"Sending translation request to openai for {len(batch)} messages")
+        logger.info("Sending translation request to openai for %d messages", len(batch))
         chat_completion = client.chat.completions.create(
             messages=[
                 {
@@ -138,11 +125,11 @@ class Translator:
         )
 
         reply = chat_completion.choices[0].message.content
-        logger.info(f"Got reply from openai")
+        logger.info("Got reply from openai")
 
         pattern = r'\[.+\]'
         matches = re.findall(pattern, reply, re.DOTALL)
-        if len(matches) == 0:
+        if not matches:
             parse_error_message = f"Could not parse openai reply: {reply}"
             logger.error(parse_error_message)
             raise Exception(parse_error_message)
@@ -151,20 +138,17 @@ class Translator:
 
         try:
             reply = json.loads(reply)
-        except Exception as e:
+        except json.JSONDecodeError as e:
             parse_error_message = f"Could not load json from openai reply: {reply}"
             logger.exception(parse_error_message)
-            raise e
+            raise
 
         if len(reply) != len(batch):
             parse_error_message = f"Openai reply has different length than batch: {reply}"
             logger.error(parse_error_message)
             raise Exception(parse_error_message)
 
-        for i in range(0, len(batch)):
-            translation_reply = reply[i]
-            translation = batch[i]
-
+        for i, (translation_reply, translation) in enumerate(zip(reply, batch)):
             if 'id' not in translation_reply:
                 parse_error_message = f"Openai reply is missing id: {reply}"
                 logger.error(parse_error_message)
@@ -184,13 +168,8 @@ class Translator:
 
                 translation.msgstr = translation_reply['text']
             else:
-                if 'text' not in translation_reply:
-                    parse_error_message = f"Openai reply is missing text: {reply}"
-                    logger.error(parse_error_message)
-                    raise Exception(parse_error_message)
-
-                if 'text_plural' not in translation_reply:
-                    parse_error_message = f"Openai reply is missing text_plural: {reply}"
+                if 'text' not in translation_reply or 'text_plural' not in translation_reply:
+                    parse_error_message = f"Openai reply is missing text or text_plural: {reply}"
                     logger.error(parse_error_message)
                     raise Exception(parse_error_message)
 
@@ -201,4 +180,4 @@ class Translator:
 
             translation.fuzzy = False
 
-        logger.info(f"Batch translated successfully")
+        logger.info("Batch translated successfully")

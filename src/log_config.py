@@ -7,19 +7,23 @@ class ThreadInfoFilter(logging.Filter):
     Log filter to add thread information to log records.
     """
     def filter(self, record):
-        record.translation_thread_name = threading.current_thread().name
-        parts = record.translation_thread_name.split(' ')
+        thread_name = threading.current_thread().name
+        record.translation_thread_name = thread_name
+        parts = thread_name.split(' ')
         if len(parts) == 4:
-            record.project = parts[1]
-            record.component = parts[2]
-            record.language = parts[3]
-            
+            record.project, record.component, record.language = parts[1:]
         return True
 
 # Define your logging configuration
 LOGGING_CONFIG = {
     'version': 1,
     'disable_existing_loggers': False,
+    'formatters': {
+        'detailed': {
+            'format': '%(asctime)s - %(translation_thread_name)s - %(levelname)s - %(message)s',
+            'datefmt': '%Y-%m-%d %H:%M:%S'
+        },
+    },
     'filters': {
         'threadInfoFilter': {
             '()': ThreadInfoFilter,
@@ -28,13 +32,20 @@ LOGGING_CONFIG = {
     'handlers': {
         'console': {
             'class': 'logging.StreamHandler',
-            'level': 'INFO',
-            'stream': 'ext://sys.stdout',
+        'level': 'INFO',
+            'formatter': 'detailed',
             'filters': ['threadInfoFilter'],
-        }
+    },
+    'file': {
+            'class': 'logging.FileHandler',
+            'filename': 'translation.log',
+            'level': 'DEBUG',
+            'formatter': 'detailed',
+            'filters': ['threadInfoFilter'],
+}
     },
     'root': {
-        'level': 'INFO',
-        'handlers': ['console'],
+        'level': 'DEBUG',
+        'handlers': ['console', 'file'],
     },
 }
